@@ -1,0 +1,99 @@
+---
+title: "Preprocessing"
+author: "Andréa"
+date: "2023-11-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Environment}
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(ggplot2)
+library(caret)
+
+set.seed(123)
+```
+
+
+
+```{r Loading}
+data <- read.table('orly_fake.csv', sep = ',', dec = '.', header = TRUE)
+
+head(data)
+tail(data)
+ncol(data)
+nrow(data)
+sum(is.na(data))
+sum(duplicated(data))
+
+
+table(data$v3_Raigu)
+table(data$v1_Raigu)
+
+cat('Nombre de colonnes: ', ncol(data))
+cat('\nNombre de lignes: ', nrow(data))
+cat('\nLe nombre de donnée manquante est de: ', sum(is.na(data)))
+cat('\nNombre de donnée dupliquée est de: ',sum(duplicated(data)))
+
+```
+
+
+##Preparation tableau variable d'interet evenement : rejet de greffe
+
+```{r creation d'une colonne globale sur l'evenement rejet de greffe}
+
+dataset_rejet01 <- data
+dataset_rejet01$Rejet <- ifelse(dataset_rejet01$v1_Raigu == 1 | dataset_rejet01$v3_Raigu == 1, 1, 0)
+
+cat('Le nombre de donnée manquante sur le rejet est de:', sum(is.na(dataset_rejet01$Rejet)))
+cat(' sur un nombre total de ligne de:', nrow(dataset_rejet01))
+
+
+
+```
+
+```{r preparation des variables}
+
+
+dataset_rejet01<-subset(dataset_rejet01, select = -c(v1_Raigu, v3_Raigu, raison, delai_v1_RAigu, delai_v3, delai_v3_RAigu, delai_sortie))
+
+```
+
+
+```{r suppression des ligne pour lesquelles on ne possede pas l'information rejet de greffe}
+
+dataset_rejet01<-dataset_rejet01[!is.na(dataset_rejet01$Rejet),]
+cat('Le dataset contient desormais le nombre de ligne suivant :', nrow(dataset_rejet01))
+
+sum(is.na(dataset_rejet01))
+ncol(dataset_rejet01)
+nrow(dataset_rejet01)
+
+```
+
+```{r split train et test}
+
+id_train <- sample(1:nrow(dataset_rejet01), size = 0.8*nrow(dataset_rejet01))
+train <- dataset_rejet01[id_train,]
+test <- dataset_rejet01[-id_train,]
+
+
+prop.table(table(train$Rejet))
+prop.table(table(test$Rejet))
+prop.table(table(dataset_rejet01$Rejet))
+```
+
+
+```{r creation arbre par default}
+
+tree_default <- rpart::rpart(Rejet~., data = train)
+rpart.plot(tree_default, cex=0.6)
+printcp(tree_default)
+rpart.plot(prune(tree_default, 0.0183))
+```

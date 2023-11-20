@@ -1,0 +1,89 @@
+---
+title: "KID_AI cohort description"
+author: "Maxime Desmarets"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    reference_docx: ../common/word-style.docx
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(gtsummary)
+library(ggplot2)
+library(GGally)
+library(corrplot)
+
+# Import des données ####
+orly <- read_csv("../output/orly.csv")
+orly_fake <- read_csv("../output/orly_fake.csv")
+
+orly <- orly |> mutate(loss = factor(if_else(raison == "Retour en dialyse", 1, 0, missing = 0))) |>
+  mutate(loss3y = case_when((raison == "Retour en dialyse" & delai_sortie < 1096) ~ 1, .default = 0)) |>
+  mutate(a_reject1y = if_else(v1_Raigu == 1, 1, 0, missing = 0)) |>
+  mutate(a_reject3y = case_when((v1_Raigu == 1 | v3_Raigu == 1) ~ 1, .default = 0))
+```
+
+# Descriptive statistics 
+## Renal graft loss 
+```{r warning=FALSE}
+theme_gtsummary_journal(journal = "nejm")
+theme_gtsummary_compact()
+orly |> tbl_summary(by=loss) |> add_overall() |> add_p()
+
+```
+
+# Correlation matrices
+## Immune profile
+### Real data
+```{r echo=FALSE, fig.height=5, fig.width=5, warning=FALSE , dpi=300}
+quantiv0 <-
+  c(
+    "v0_tcd3_p",
+    "v0_tcd3",
+    "v0_tcd3_cd4_p",
+    "v0_tcd3_cd4",
+    "v0_tcd4_cd45ra_p",
+    "v0_tcd4_cd45ra_cd31_p",
+    "v0_tcd4_cd45ro_p",
+    "v0_tcd3_cd8_p",
+    "v0_tcd3_cd8",
+    "v0_tcd3_cd8_cd16_p",
+    "v0_tcd3_cd8_cd16",
+    "v0_tcd3_cd8m_cd16_p",
+    "v0_tcd3_cd8m_cd16",
+    "v0_r_cd4_cd8",
+    "v0_bcd19_p",
+    "v0_bcd19",
+    "v0_nk_cd56_cd3_p",
+    "v0_nk_cd56_cd3",
+    "v0_monocytestotaux_p",
+    "v0_monocytestotaux",
+    "v0_monocytesInflam_p",
+    "v0_monocytesInflam"
+  )
+
+orly |> select(all_of(quantiv0)) |> cor(use = "pairwise.complete.obs") |> corrplot(tl.cex=0.7)
+
+```
+
+### Fake data 
+```{r echo=FALSE, fig.height=5, fig.width=5, message=FALSE, warning=FALSE, dpi=300}
+orly_fake |> select(all_of(quantiv0)) |> cor(use = "pairwise.complete.obs") |> corrplot(tl.cex=0.7)
+```
+
+## Full correlation matrix by outcome
+NOte: need to display on large display
+```{r message=FALSE, warning=FALSE}
+ggp <- orly |> select(all_of(quantiv0), loss) |> ggpairs(mapping = ggplot2::aes(colour = loss),
+                                                         lower = list(continuous = wrap(ggally_points, alpha = 0.3, size=1)),
+                                                         upper = list(continuous = wrap(ggally_cor, size=5)),
+                                                         diag = list(continuous = wrap(ggally_densityDiag, alpha = 0.3))
+                                                         )
+print(ggp, progress = F)
+ggsave("../output/matrix.png", plot = ggp, height=20, width=40, dpi=300)
+```
+

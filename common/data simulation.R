@@ -2,7 +2,7 @@
 
 # Imputation et Simulation des données
 # Maxime Desmarets
-# 11 novembre 2023
+# 27 novembre 2023
 
 library(tidyverse)
 library(umx)
@@ -257,7 +257,7 @@ dat_var <- c(
 )
 
 # Import des données ####
-orly <- read_csv2("../sources/ORLY Est_20190308 acp.csv", col_select = var, na = c("", "NA", "DM", "ND", "NC","NP","."))
+orly <- read_csv2("sources/ORLY Est_20190308 acp.csv", col_select = var, na = c("", "NA", "DM", "ND", "NC","NP","."))
 
 # head(orly)
 # tail(orly)
@@ -267,11 +267,11 @@ orly <- orly |>
   mutate(nephro_ini = replace_na(nephro_ini, "Unknown")) |> # Unknown when nephrapthy is missing
   mutate(dDialyse = case_when(mDialyse == "NON" ~ 0, .default = dDialyse)) |> # Put 0 when mode of dialysis is none
   mutate(trans_rein_nbre = case_when(trans_rein == "Absent" ~ 0, .default = trans_rein_nbre)) |> # put 0 when first kidney transplant
-  mutate(trans_organe = case_when(trans_autre == "Absent" ~ "None", .default = trans_organe)) |>
+  mutate(trans_organe = case_when(trans_autre == "Absent" ~ "None", .default = trans_organe)) 
 
 
 # Recodage ####
-orly <- orly |>
+orly <- orly |> 
   filter(!is.na(dTransplantation)) |> # Suppression des patients sans date de transplantation (impossible de calculer les délais)
   mutate(across(all_of(bin_var_abs), ~ case_match(.x ,
                                                   "Absent" ~ 0,
@@ -291,8 +291,14 @@ orly <- orly |>
   mutate(delai_v3 = as.numeric(v3_dVisite - dTransplantation)) |>
   mutate(delai_v3_RAigu = as.numeric(v3_dRAigu - dTransplantation)) |>
   mutate(delai_sortie = as.numeric(dSortie - dTransplantation)) |>
-  select(!all_of(dat_var)) |> # suppression des dates exactes
+  select(!all_of(dat_var)) |> # suppression des dates exactes |>
+  mutate(eve_cardio = case_when(if_any(eve_cardio_acfa:eve_cardio_nd, ~ .x == 1) ~ 1, .default = 0)) |>
+  mutate(patho_coro = case_when(if_any(patho_coro_idm:patho_coro_nd, ~ .x == 1) ~ 1, .default = 0)) |>
+  mutate(mal_cv = case_when(if_any(mal_cv_avc:mal_cv_nd, ~ .x == 1) ~ 1, .default = 0)) |>
+  mutate(aomi = case_when(if_any(aomi_ampu:aomi_nd, ~ .x == 1) ~ 1, .default = 0)) |>
+  mutate(eve_pul = case_when(if_any(eve_pul_bpco:eve_pul_ir, ~ .x == 1) ~ 1, .default = 0)) |>
   as.data.frame()
+
 
 # More missing data
 orly <- orly |>
@@ -301,7 +307,7 @@ orly <- orly |>
 
 # glimpse(orly)
 
-write_csv(head(orly), "../output/extrait_orly.csv") # Export d'un extrait de données
+write_csv(head(orly), "output/extrait_orly.csv") # Export d'un extrait de données
 
 # Génération des données simulées ####
 # orly_fake <- umx_make_fake_data(orly) # Ne fonctionne pas. Pas assez de lignes pour faire tourner les modèles.
@@ -309,10 +315,10 @@ write_csv(head(orly), "../output/extrait_orly.csv") # Export d'un extrait de don
 # Contournement du probleme en faisant une simulation partielle des données sur un nombre limité de variables
 var_sim <- c("age","sexe", "sCMV", "diabete", "hta", "IMC", "dDialyse") # Liste des variables de base à simuler
 
-orly_fake_v0 <- orly |> select(all_of(var_sim), v0_tcd3_p:v0_monocytesInflam, delai_v1:delai_sortie) |> umx_make_fake_data() |>
-  select(all_of(var_sim), v0_tcd3_p:v0_monocytesInflam, delai_v1:delai_sortie) # Selection des variables bio à V0 plus les variables de base
+orly_fake_v0 <- orly |> select(all_of(var_sim), v0_tcd3_p:v0_monocytesInflam) |> umx_make_fake_data() |>
+  select(all_of(var_sim), v0_tcd3_p:v0_monocytesInflam) # Selection des variables bio à V0 plus les variables de base
 
-orly_fake_v1 <- orly |> select(all_of(var_sim), v1_tcd3_p:v1_monocytesInflam, delai_v1:delai_sortie) |> umx_make_fake_data() |>
+orly_fake_v1 <- orly |> select(all_of(var_sim), v1_tcd3_p:v1_monocytesInflam, delai_sortie) |> umx_make_fake_data() |>
   select(v1_tcd3_p:v1_monocytesInflam) # Selection des variables bio à V1
 # Le résultat n'est pas parfait, il y a des valeurs négatives impossibles dans la vraie vie...
 
@@ -322,7 +328,14 @@ orly_fake_var <- names(orly_fake)
 orly_base <- orly |> select(-all_of(orly_fake_var)) # Sélection de toutes les variables restantes
 orly_fake <- bind_cols(orly_base, orly_fake) |> relocate(names(orly)) # Assemblage et remise en ordre original des variables
 
+# Recodage de la variable expliquée
+orly_fake <- orly_fake |> 
+mutate(rejet3y = case_when(raison == "Retour en dialyse" & delai_sortie <= 1096 ~ 1, .default = 0)) 
+
+orly <- orly |> 
+  mutate(rejet3y = case_when(raison == "Retour en dialyse" & delai_sortie <= 1096 ~ 1, .default = 0)) 
+
 # Export des données réelles et simulées ####
-write_csv(orly, "../output/orly.csv") 
-write_csv(orly_fake, "../output/orly_fake.csv") 
+write_csv(orly, "output/orly.csv") 
+write_csv(orly_fake, "output/orly_fake.csv") 
 

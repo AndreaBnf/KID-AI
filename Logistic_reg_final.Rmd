@@ -1,0 +1,447 @@
+---
+title: "Regression_Logistique"
+author: "Andréa"
+date: "2023-11-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+trans rein nbr a retirer -> memes informations 
+
+
+```{r Environment}
+if(!require('ggplot2')){install.packages('ggplot2')} # Package for plots
+if(!require('tidyr')){install.packages('tidyr')} # Package for correlation
+if(!require('dplyr')){install.packages('dplyr')} # Package for mutate data
+if(!require('questionr')){install.packages('questionr')}  
+if(!require('gtsummary')){install.packages('gtsummary')} # Package for beautiful mise en page
+if(!require('forestmodel')){install.packages('forestmodel')} # Package for results mise en page
+if(!require('effects')){install.packages('effects')} # Package for  results mise en page
+if(!require('MASS')){install.packages('MASS')} # Package for stepAIC()
+if(!require('corrplot')){install.packages('corrplot')} # Package for correlation
+library(ggplot2)
+library(dplyr)
+library(questionr)
+library(gtsummary)
+library(forestmodel)
+library(effects)
+library(MASS)
+library(corrplot)
+library(tidyr)
+set.seed(123)
+```
+
+```{r Loading}
+data <- read.csv('orly_fake.csv', sep = ',', dec = '.', header = TRUE)
+
+head(data)
+tail(data)
+ncol(data)
+nrow(data)
+sum(is.na(data))
+sum(duplicated(data))
+
+
+cat('Nombre de colonnes: ', ncol(data))
+cat('\nNombre de lignes: ', nrow(data))
+cat('\nLe nombre de donnée manquante est de: ', sum(is.na(data)))
+cat('\nNombre de donnée dupliquée est de: ',sum(duplicated(data)))
+
+```
+
+```{r reclassifier les variables}
+#str(data)
+#remplacer les types de données de interger -> factor
+data <- data %>%
+  mutate_if(is.integer, as.factor)
+
+#remplacer les types de données de character -> factor
+data <- data %>%
+  mutate_if(is.character, as.factor)
+
+```
+
+
+```{r vérification}
+
+#pour réaliser une régression logistique il est nécessaire d’avoir au moins 10 fois plus d'evenements que de paramètres dans le modèle
+#
+# nombre de parametre : 16
+# nombre d'evenement minimum requis : 160
+table(data$rejet3y)
+
+# présent 110 ...
+
+#PROBLEME... 
+
+```
+
+
+```{r data managment variables}
+
+#Si on laisse toutes les variables le model perds du sens et ne converge pas...
+
+Col_names_to_remove <- c("diabete_type",
+                         "trans_autre",
+                         "trans_organe",
+                         "tii_p_antiCMV_ttt",
+                         "v1_Raigu",
+                         "v1_tcd3_p",
+                         "v1_tcd3",
+                         "v1_tcd3_cd4_p",
+                         "v1_tcd3_cd4",
+                         "v1_tcd4_cd45ra_p",
+                         "v1_tcd4_cd45ra_cd31_p",
+                         "v1_tcd4_cd45ro_p",
+                         "v1_tcd3_cd8_p",
+                         "v1_tcd3_cd8",
+                         "v1_tcd3_cd8_cd16_p",
+                         "v1_tcd3_cd8_cd16",
+                         "v1_tcd3_cd8m_cd16_p",
+                         "v1_tcd3_cd8m_cd16",
+                         "v1_r_cd4_cd8",
+                         "v1_bcd19_p",
+                         "v1_bcd19",
+                         "v1_nk_cd56_cd3_p",
+                         "v1_nk_cd56_cd3",
+                         "v1_monocytestotaux_p",
+                         "v1_monocytestotaux",
+                         "v1_monocytesInflam_p",
+                         "v1_monocytesInflam",
+                         "v3_Raigu",
+                         "raison",
+                         "delai_v1",
+                         "delai_v1_RAigu",
+                         "delai_v3",
+                         "delai_v3_RAigu",
+                         "delai_sortie",
+                         "eve_cardio_acfa",
+                         "eve_cardio_hta",
+                         "eve_cardio_ic",
+                         "eve_cardio_nd",
+                         "patho_coro_idm",
+                         "patho_coro_rc",
+                         "patho_coro_angor",
+                         "patho_coro_ms",
+                         "patho_coro_nd",
+                         "mal_cv_avc",
+                         "mal_cv_ec",
+                         "mal_cv_tc",
+                         "mal_cv_nd",
+                         "aomi_ampu",
+                         "aomi_ci",
+                         "aomi_revascu",
+                         "aomi_nd",
+                         "patho_aort",
+                         "eve_pul_bpco",
+                         "eve_pul_emph",
+                         "eve_pul_ac",
+                         "eve_pul_ir",
+                         "trans_rein_nbre"
+                         
+                         
+                         )
+data_2 <- data[, -which(names(data) %in% Col_names_to_remove)]
+
+
+#str(data_2)
+#ncol(data_2)
+```
+
+
+```{r visualisation globale}
+
+#graphiques reject3y en fonctions des variables continues
+
+col_names <- names(data_2)
+
+for (col in col_names) {
+  if (is.numeric(data[[col]])) {
+  descriptiv_graph<-ggplot(data_2, aes(x = data_2[[col]], y = rejet3y)) +
+    geom_point() +
+    ggtitle(paste("Graphique pour", col))
+  print(descriptiv_graph)
+  }}
+
+
+
+
+#plots reject3y en fonctions des variables categorielles
+
+for (col in col_names) {
+  if (is.factor(data_2[[col]])) {
+    descriptiv_hist <- ggplot(data_2, aes_string(x = col, fill = "rejet3y")) +
+      geom_bar(position = "fill", col = "black") +
+      scale_fill_manual(values = c("#43d8c9", "#95389e"))
+    print(descriptiv_hist)
+  }}
+  
+```
+
+
+```{r matrice de correlation}
+
+data2_corr <- data_2 %>% select_if(is.numeric)
+cor_matrix<-cor(data2_corr, use = "complete.obs")
+corrplot(cor_matrix)
+
+
+
+cor_high_indices <- which(abs(cor_matrix) > 0.8 & upper.tri(cor_matrix), arr.ind = TRUE)
+
+#me sort les paires de variables a forte corrélation
+variable_pairs <- cbind(
+  rownames(cor_matrix)[cor_high_indices[, 1]],
+  colnames(cor_matrix)[cor_high_indices[, 2]]
+)
+
+# Afficher les paires de noms de variables
+print(variable_pairs)
+
+#retire une des variables de la paire 
+data_3 <- data_2[, -which(names(data_2) %in% variable_pairs[,1])]
+
+```
+
+```{r identification des evenements aux probas 0 ou 1}
+
+#PROBLEMATIQUE : des probabilités ont été ajustées numériquement à 0 ou 1
+#
+# Ceratines probabilités d'évènement sont de 0 (ou tres proche) et de 1 (ou tres proche)
+# Ces variables ne sont statistiquement pas interessante a exploiter ... et ne veulent rien dire 
+
+
+#SOLUTION : identifier les variables avec un evenement d'apparition faible proche de 0 ou 1
+#
+#
+
+
+variables_erreurs <- c()
+
+ for (col in col_names) {
+   if (is.factor(data_2[[col]])) {
+     
+     #je ne selectionne que les evenements binaires
+     nombre_labels <- length(unique(data_2[[col]]))
+     if (nombre_labels == 2){
+       frequences <- table(data_2[[col]])
+       print(col)
+       print(frequences)
+       proba <- (frequences[2][[1]])/(frequences[2][[1]]+frequences[1][[1]])
+       print(round(proba, digits = 2))
+       
+       #je choisi d'arrondir à 0 les probabilitès d'évenement <0.05
+       print(round(proba, digits = 1)==0)
+       print("------------------")
+       if ((round(proba, digits = 1)==0)==TRUE){
+         variables_erreurs <- c(variables_erreurs, col)
+       }
+     }
+   }
+ }
+ 
+ data_3 <- data_3[, -which(names(data_2) %in% variables_erreurs)]
+ 
+```
+
+
+
+
+```{r effacer les lignes NA}
+nrow(data_3)
+
+data_3woNA<- data_3 %>% drop_na()
+
+nrow(data_3woNA)
+
+```
+
+
+
+```{r splitting}
+
+id_train<-sample(1:nrow(data_3woNA),size = nrow(data_3woNA) *0.8)
+train <- data_3woNA[id_train, ]
+test <- data_3woNA[-id_train,]
+
+table(train$rejet3y)
+table(test$rejet3y)
+
+prop.table(table(data$rejet3y))
+prop.table(table(train$rejet3y))
+prop.table(table(test$rejet3y))
+```
+
+
+
+```{r modeling train}
+
+frequence_init_rejet_0 <- prop.table(table(train$nephro_ini[train$rejet3y == '0']))
+frequence_init_rejet_0
+
+frequence_init_rejet_1 <- prop.table(table(train$nephro_ini[train$rejet3y == '1']))
+frequence_init_rejet_1
+```
+
+```{r modeling train}
+model1 <- glm(rejet3y~age+sexe+
+                #nephro_ini+
+                mDialyse+
+                dDialyse+trans_rein+
+                #trans_rein_nbre+
+                cancer+diabete+
+                dyslipidemie+hta+
+                IMC+sCMV+
+                ac_antiHLA+tii_induction+
+                ent_ciclosporine+ent_corticoides+
+                ent_mmf+ent_tacrolimus+
+                tii_p_antiCMV+v0_tcd3_cd4_p+
+                v0_tcd3_cd4+v0_tcd4_cd45ro_p+
+                v0_tcd3_cd8+v0_tcd3_cd8_cd16_p+
+                v0_tcd3_cd8_cd16+v0_tcd3_cd8m_cd16_p+
+                v0_tcd3_cd8m_cd16+v0_r_cd4_cd8+v0_bcd19+
+                v0_nk_cd56_cd3_p+v0_nk_cd56_cd3+
+                v0_monocytestotaux_p+v0_monocytestotaux+
+                v0_monocytesInflam_p+v0_monocytesInflam+
+                eve_cardio+patho_coro+
+                mal_cv+aomi+
+                eve_pul, data = train, family = binomial() )
+summary(model1)
+
+
+odddRatio_NA<-(odds.ratio(model1))
+odddRatio_NA
+```
+
+```{r vérifications}
+
+#presence de surdispersion ?
+
+Residual_deviance<-368.40
+nddl <- 695
+
+ratio_disp <- Residual_deviance/nddl
+print(ratio_disp)
+#0.53
+#pas de surdispersion, utilisation du chi2 pour evaluer l'effet des variables sur le model 
+
+```
+
+
+```{r vérifications}
+## evenement <10% ?
+
+freq_evenement<-68/688
+print(freq_evenement)
+#0.09%
+#10% odds ratio peut etre interprété comme un Risque relatif
+
+```
+
+
+```{r}
+
+odddRatio_NA<-(odds.ratio(model1))
+
+```
+
+
+```{r visualisation model1 sans les proba 0 ou 1 }
+
+
+tbl_regression(model1, exponentiate = TRUE,pvalue_fun = ~ style_pvalue(.x, digits = 2), )%>% 
+  add_global_p()
+
+
+```
+
+
+```{r visualisation model1 sans les proba 0 ou 1 }
+forest_model(model1)
+```
+
+
+```{r visualisation model1 sans les proba 0 ou 1 }
+plot(allEffects(model1))
+```
+
+
+
+
+
+
+```{r modeling}
+
+#PROBLEMATIQUE : l'utilisation de stepAIC qui permet de relever l'effet des variables sur le model ne fonctionne pas avec des NA
+#
+#SOLUTION: je fait tourner un model sur les data du model existant qui sont deja traitées
+#l'avantage est que j'utilise les informations qui sont deja dans le model (gain de temps de traitement)
+
+#model1_bis <- glm(rejet3y~., data = model1$model, family = binomial() )
+#print(model1_bis)
+
+model_aj_machine1 <- stepAIC(model1)
+
+
+
+```
+
+
+```{r modeling association positive ou négative des variables}
+
+#On fait tourner le model sans les variables a probabilité d'evenement très bas 
+model2 <- glm(rejet3y~., data = data_2, family = binomial() )
+summary(model2)
+step(model2)
+
+
+# Le signe de B1 donne le sens de l'association 
+# significativement different de 1 
+#
+# -> "assez different de 1 pour dire association positive ou négative"
+
+
+
+#PROBLEMATIQUE : Erreur dans stepAIC(model2) :le nombre de lignes utilisées a changé : retirer les valeurs manquantes ?
+# des NAs ... 
+#
+#
+#SOLUTION : je refais tourner une regression logistique avec seulement les data disponible qui ont deja ete traité avec le premier model
+
+model2_bis<-glm(rejet3y~., data = model2$model, family = binomial())
+summary(model2_bis)
+step(model2_bis)
+
+```
+
+```{r modeling impmact des variables et ajuster le model}
+
+#Propose un model ajusté avec les variables qui impactent le model
+
+model_aj_machine <- stepAIC(model2_bis)
+summary(model_aj_machine)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+y

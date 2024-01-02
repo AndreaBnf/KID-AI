@@ -218,33 +218,33 @@ data_3 <- data_2[, -which(names(data_2) %in% variable_pairs[,1])]
 #
 #
 
-
-variables_erreurs <- c()
-
- for (col in col_names) {
-   if (is.factor(data_2[[col]])) {
-     
-     #je ne selectionne que les evenements binaires
-     nombre_labels <- length(unique(data_2[[col]]))
-     if (nombre_labels == 2){
-       frequences <- table(data_2[[col]])
-       print(col)
-       print(frequences)
-       proba <- (frequences[2][[1]])/(frequences[2][[1]]+frequences[1][[1]])
-       print(round(proba, digits = 2))
-       
-       #je choisi d'arrondir à 0 les probabilitès d'évenement <0.05
-       print(round(proba, digits = 1)==0)
-       print("------------------")
-       if ((round(proba, digits = 1)==0)==TRUE){
-         variables_erreurs <- c(variables_erreurs, col)
-       }
-     }
-   }
- }
- 
- data_3 <- data_3[, -which(names(data_2) %in% variables_erreurs)]
- 
+# 
+# variables_erreurs <- c()
+# 
+#  for (col in col_names) {
+#    if (is.factor(data_2[[col]])) {
+#      
+#      #je ne selectionne que les evenements binaires
+#      nombre_labels <- length(unique(data_2[[col]]))
+#      if (nombre_labels == 2){
+#        frequences <- table(data_2[[col]])
+#        print(col)
+#        print(frequences)
+#        proba <- (frequences[2][[1]])/(frequences[2][[1]]+frequences[1][[1]])
+#        print(round(proba, digits = 2))
+#        
+#        #je choisi d'arrondir à 0 les probabilitès d'évenement <0.05
+#        print(round(proba, digits = 1)==0)
+#        print("------------------")
+#        if ((round(proba, digits = 1)==0)==TRUE){
+#          variables_erreurs <- c(variables_erreurs, col)
+#        }
+#      }
+#    }
+#  }
+#  
+#  data_3 <- data_3[, -which(names(data_2) %in% variables_erreurs)]
+#  
 ```
 
 
@@ -252,9 +252,9 @@ variables_erreurs <- c()
 
 ```{r effacer les lignes NA}
 nrow(data_3)
-
+ 
 data_3woNA<- data_3 %>% drop_na()
-
+ 
 nrow(data_3woNA)
 
 ```
@@ -285,13 +285,21 @@ frequence_init_rejet_0
 frequence_init_rejet_1 <- prop.table(table(train$nephro_ini[train$rejet3y == '1']))
 frequence_init_rejet_1
 ```
+```{r modeling train}
+
+frequence_init_rejet_0 <- prop.table(table(train$trans_rein[train$rejet3y == '0']))
+frequence_init_rejet_0
+
+frequence_init_rejet_1 <- prop.table(table(train$trans_rein[train$rejet3y == '1']))
+frequence_init_rejet_1
+```
 
 ```{r modeling train}
 model1 <- glm(rejet3y~age+sexe+
                 #nephro_ini+
                 mDialyse+
                 dDialyse+trans_rein+
-                #trans_rein_nbre+
+               
                 cancer+diabete+
                 dyslipidemie+hta+
                 IMC+sCMV+
@@ -320,12 +328,12 @@ odddRatio_NA
 
 #presence de surdispersion ?
 
-Residual_deviance<-368.40
-nddl <- 695
+#Residual_deviance<-348.62
+#nddl <- 710
 
-ratio_disp <- Residual_deviance/nddl
-print(ratio_disp)
-#0.53
+#ratio_disp <- Residual_deviance/nddl
+#print(ratio_disp)
+#0.49
 #pas de surdispersion, utilisation du chi2 pour evaluer l'effet des variables sur le model 
 
 ```
@@ -333,10 +341,9 @@ print(ratio_disp)
 
 ```{r vérifications}
 ## evenement <10% ?
-
-freq_evenement<-68/688
-print(freq_evenement)
-#0.09%
+frequence_event <- prop.table(table(data_3$rejet3y == '1'))
+frequence_event
+#0.09981851%
 #10% odds ratio peut etre interprété comme un Risque relatif
 
 ```
@@ -353,7 +360,7 @@ odddRatio_NA<-(odds.ratio(model1))
 
 
 tbl_regression(model1, exponentiate = TRUE,pvalue_fun = ~ style_pvalue(.x, digits = 2), )%>% 
-  add_global_p()
+ add_global_p()
 
 
 ```
